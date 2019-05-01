@@ -1,0 +1,15 @@
+networks:
+    front:
+        driver: bridge
+    back:
+        driver: bridge
+services:
+    builder:
+        container_name: "builder_server"
+        build: ./docker/server
+        volumes:
+            - ./:/root/
+        networks:
+            - front
+            - back
+version: '2'
