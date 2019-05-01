@@ -1,0 +1,7 @@
+key/id_rsa
+key/id_rsa.pub
+.idea
+.bash_history
+*.pyc
+config.php
+env.yml
