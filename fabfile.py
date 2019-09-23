@@ -141,8 +141,8 @@ def test(branch=''):
     global project
     warnings.simplefilter('ignore')
     folder = branch.split('/')[-1]
-    source = project['path'] + folder
-    with cd(source):
+    project_path = project['path'] + folder
+    with cd(project_path):
         run("ls -la")
         git.tree()
 
@@ -153,11 +153,14 @@ Usage: $ fab role:[ROLE] deploy:[BRANCH]
 
 
 @task
-def deploy(branch='', rebuild=False):
+def deploy(branch='', source='', rebuild=False):
     print green("Start build project")
     global project
     warnings.simplefilter('ignore')
-    folder = branch.split('/')[-1]
+    if len(source) > 0:
+    	folder = source
+    else:
+    	folder = branch.split('/')[-1]
     if len(folder) == 0:
         print red("The folder not found")
         return
@@ -169,7 +172,7 @@ def deploy(branch='', rebuild=False):
             print magenta(run("pwd"))
             if rebuild:
                 print magenta("Rebuild again for branch %s" % branch)
-                destroy(branch)
+                destroy(branch, source)
                 print green("Start clone source from git for branch %s " % branch)
                 git.command("clone", "--branch", branch, project['git'], folder)
             else:
@@ -182,7 +185,7 @@ def deploy(branch='', rebuild=False):
                 else:
                     print red("Check exists source in %s" % folder) + green(": OK")
                     print green("The folder for branch %s is exists" % branch)
-    __build_project(branch)
+    __build_project(branch, source)
 
 
 """
@@ -192,20 +195,23 @@ Usage: $ fab role:[ROLE] __build_project:[BRANCH]
 
 
 @task
-def __build_project(branch):
+def __build_project(branch, source=''):
     global project
-    folder = branch.split('/')[-1]
+    if len(source) > 0:
+        folder = source
+    else:
+        folder = branch.split('/')[-1]
     if len(folder) == 0:
         print red("The folder not found")
         return
-    source = project['path'] + folder
-    with cd(source):
+    project_path = project['path'] + folder
+    with cd(project_path):
         print yellow("RUN: pwd")
         print magenta(run("pwd"))
         git.command('fetch origin')
         git.command('reset', 'origin/' + branch, '--hard')
         git.branch()
-        __update_source(branch)
+        __update_source(branch, source)
         print yellow("RUN: ls -la")
         run("ls -la")
         git.branch()
@@ -219,29 +225,32 @@ Usage: $ fab role:[ROLE] __update_source:[BRANCH]
 
 
 @task
-def __update_source(branch):
+def __update_source(branch, source=''):
     global project
-    folder = branch.split('/')[-1]
+    if len(source) > 0:
+        folder = source
+    else:
+        folder = branch.split('/')[-1]
     if len(folder) == 0:
         print red("The folder not found")
         return
-    source = project['path'] + folder
-    with cd(source):
+    project_path = project['path'] + folder
+    with cd(project_path):
         with settings(hide('warnings', 'running', 'stdout', 'stderr'), warn_only=True):
-            print yellow("RUN: rm -rf %s/uploads/" % source)
-            sudo("rm -rf %s/uploads/" % source)
-            print yellow("RUN: ln -s %s/uploads %s/uploads" % (project['shared_path'], source))
-            sudo("ln -s %s/uploads %s/uploads" % (project['shared_path'], source))
-            print yellow("RUN: chmod -R g+w %s%s" % (source, project['cache_source_path']))
-            sudo("chmod -R g+w %s%s" % (source, project['cache_source_path']))
-            print yellow("RUN: rm -rf %s/database/" % source)
-            sudo("rm -rf %s/database/" % source)
-            print yellow("RUN: rm -rf %s%s" % (source, project['logs_source_path']))
-            sudo("rm -rf %s%s" % (source, project['logs_source_path']))
-            print yellow("RUN: ln -s %s/data %s/data" % (project['shared_path'], source))
-            sudo("ln -s %s/data %s/data" % (project['shared_path'], source))
-            print yellow("RUN: ln -s %s/logs %s%s"% (project['shared_path'], source, project['logs_source_path']))
-            sudo("ln -s %s/logs %s%s"% (project['shared_path'], source, project['logs_source_path']))
+            print yellow("RUN: rm -rf %s/uploads/" % project_path)
+            sudo("rm -rf %s/uploads/" % project_path)
+            print yellow("RUN: ln -s %s/uploads %s/uploads" % (project['shared_path'], project_path))
+            sudo("ln -s %s/uploads %s/uploads" % (project['shared_path'], project_path))
+            print yellow("RUN: chmod -R g+w %s%s" % (project_path, project['cache_source_path']))
+            sudo("chmod -R g+w %s%s" % (project_path, project['cache_source_path']))
+            print yellow("RUN: rm -rf %s/database/" % project_path)
+            sudo("rm -rf %s/database/" % project_path)
+            print yellow("RUN: rm -rf %s%s" % (project_path, project['logs_source_path']))
+            sudo("rm -rf %s%s" % (project_path, project['logs_source_path']))
+            print yellow("RUN: ln -s %s/data %s/data" % (project['shared_path'], project_path))
+            sudo("ln -s %s/data %s/data" % (project['shared_path'], project_path))
+            print yellow("RUN: ln -s %s/logs %s%s"% (project['shared_path'], project_path, project['logs_source_path']))
+            sudo("ln -s %s/logs %s%s"% (project['shared_path'], project_path, project['logs_source_path']))
             htaccess_source_file = open('./config/.htaccess.sample', 'r')
             htaccess_destination_file = open('./config/.htaccess', 'w')
             for _line in htaccess_source_file:
@@ -254,7 +263,7 @@ def __update_source(branch):
                 destination_file.write(line.replace('ticket_branch_folder', folder))
             source_file.close()
             destination_file.close()
-    config_folder = source + '/system/virtualpost/config/development'
+    config_folder = project_path + '/system/virtualpost/config/development'
     print yellow("RUN: Move file new config to folder")
     put("./config/config.php", config_folder + '/config.php')
     print yellow("RUN: Move file .htaccess to root folder")
@@ -288,10 +297,13 @@ Usage: $ fab role:[ROLE] destroy:[BRANCH]
 
 
 @task
-def destroy(branch=''):
+def destroy(branch='', source = ''):
     global project
     warnings.simplefilter('ignore')
-    folder = branch.split('/')[-1]
+    if len(source) == 0:
+    	folder = branch.split('/')[-1]
+    else:
+        folder = source
     if len(folder) == 0:
         print red("The folder not found")
         return
